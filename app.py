@@ -305,6 +305,17 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/health")
+def health():
+    key_exists = GEMINI_API_KEY is not None and len(GEMINI_API_KEY.strip()) > 0
+    key_prefix = GEMINI_API_KEY[:6] if key_exists else "None"
+    return jsonify({
+        "status": "healthy",
+        "gemini_api_key_configured": key_exists,
+        "key_prefix": key_prefix
+    })
+
+
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.json or {}
