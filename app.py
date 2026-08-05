@@ -127,7 +127,7 @@ def extract_symptoms_with_llm(text: str):
         f"Symptoms present:"
     )
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GEMINI_API_KEY}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -240,7 +240,7 @@ def gemini_reply(user_message: str, active_symptoms: list = None, conversation_h
     if not GEMINI_API_KEY:
         return get_fallback_reply(user_message)
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GEMINI_API_KEY}"
     
     system_instruction = (
         "You are Medi AI, a helpful, friendly, and concise medical AI assistant. "
@@ -315,7 +315,7 @@ def health():
     
     if key_exists:
         try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GEMINI_API_KEY}"
             payload = {"contents": [{"parts": [{"text": "Hello"}]}]}
             res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=4)
             test_api_status = res.status_code
@@ -414,7 +414,7 @@ def chat():
                     f"and include a suggestion to consult a doctor for a proper diagnosis."
                 )
                 try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GEMINI_API_KEY}"
                     payload = {
                         "contents": [{"parts": [{"text": advice_prompt}]}],
                         "generationConfig": {"temperature": 0.5, "maxOutputTokens": 100}
