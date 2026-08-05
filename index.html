@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Medi AI — Intelligent Health Companion</title>
+  <!-- Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-main">
+        <h1>🤖 Medi AI</h1>
+        <button id="reset-btn" class="reset-btn" title="Reset chat and active symptoms">Reset App</button>
+      </div>
+      <p class="sub">Describe your symptoms below, or select them directly from the tags to get a quick suggestion analysis.</p>
+    </header>
+
+    <!-- Interactive Active Symptoms Box -->
+    <div id="active-symptoms-section" class="active-symptoms-container hidden">
+      <div class="section-title">Active Symptoms:</div>
+      <div id="active-symptoms-list" class="active-pills-row"></div>
+    </div>
+
+    <!-- Toggle list of supported symptoms -->
+    <div class="symptoms-toggle-container">
+      <button id="symptoms-toggle" class="ghost">Select supported symptoms (+)</button>
+      <div id="symptoms-list-container" class="symptoms-selector-wrapper hidden">
+        <p class="selector-instructions">Click tags to add/remove symptoms:</p>
+        <div id="symptoms-pill-grid" class="pill-grid"></div>
+      </div>
+    </div>
+
+    <main>
+      <!-- Chat box interface -->
+      <div id="chat-box" class="chat-box"></div>
+      
+      <!-- Prediction Results panel (dynamic) -->
+      <div id="prediction-panel" class="prediction-panel hidden">
+        <div class="panel-header">
+          <h3>🩺 Classifier Suggestions</h3>
+          <span class="conf-disclaimer">Confidence levels</span>
+        </div>
+        <div id="predictions-list" class="predictions-list"></div>
+      </div>
+
+      <div class="input-row">
+        <input id="user-input" type="text" placeholder="Describe symptoms or say hello..." autocomplete="off" />
+        <button id="send-btn">Send</button>
+      </div>
+    </main>
+
+    <footer class="emergency">
+      <div>🚑 Emergency: <strong>102</strong></div>
+      <div>☣️ Poison Control: <strong>1800-425-1213</strong></div>
+      <div>🧠 Mental Health: <strong>14416</strong></div>
+    </footer>
+    
+    <div class="disclaimer">
+      ⚠️ <strong>Disclaimer:</strong> Medi AI provides health suggestions using a trained classifier and helper LLM, but is <strong>not a substitute</strong> for professional medical advice, diagnosis, or treatment. Always consult a licensed doctor for proper guidance.
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
