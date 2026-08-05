@@ -309,10 +309,27 @@ def index():
 def health():
     key_exists = GEMINI_API_KEY is not None and len(GEMINI_API_KEY.strip()) > 0
     key_prefix = GEMINI_API_KEY[:6] if key_exists else "None"
+    
+    test_api_status = None
+    test_api_response = None
+    
+    if key_exists:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
+            payload = {"contents": [{"parts": [{"text": "Hello"}]}]}
+            res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=4)
+            test_api_status = res.status_code
+            test_api_response = res.text[:200]  # Show first 200 chars
+        except Exception as e:
+            test_api_status = "error"
+            test_api_response = str(e)
+            
     return jsonify({
         "status": "healthy",
         "gemini_api_key_configured": key_exists,
-        "key_prefix": key_prefix
+        "key_prefix": key_prefix,
+        "test_api_status": test_api_status,
+        "test_api_response": test_api_response
     })
 
 
