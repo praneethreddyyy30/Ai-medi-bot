@@ -330,10 +330,28 @@ def get_fallback_reply(user_message: str) -> str:
     if "symptom" in msg or "help" in msg or "what can you do" in msg:
         return "I can predict likely health conditions based on symptoms like fever, cough, and headache. Select symptoms using the tags below or type them."
 
+    # Detect "what is [disease]?" type queries and answer via MedlinePlus
+    what_is_match = re.search(
+        r"what\s+is\s+(?:a\s+|an\s+|the\s+)?([a-z\s\-]+?)[\?\.\!]?$", msg.strip()
+    )
+    if what_is_match:
+        term = what_is_match.group(1).strip()
+        medline_answer = fetch_medlineplus_remedy(term)
+        if medline_answer:
+            return (f"📚 *From MedlinePlus (NLM):* {medline_answer}\n\n"
+                    f"⚠️ For personalised advice, please describe your symptoms below.")
+
     # Check if the user message contains any medical keywords
     has_medical_keyword = any(kw in msg for kw in MEDICAL_KEYWORDS)
     if has_medical_keyword:
-        return "I am currently offline or experiencing rate limits. While I cannot answer general medical questions right now, please select or enter your symptoms to get a classifier suggestion."
+        # Try MedlinePlus for any disease name mentioned
+        for kw in MEDICAL_KEYWORDS:
+            if kw in msg:
+                medline_answer = fetch_medlineplus_remedy(kw)
+                if medline_answer:
+                    return (f"📚 *From MedlinePlus (NLM):* {medline_answer}\n\n"
+                            f"⚠️ For personalised advice, describe your symptoms below.")
+        return "I am currently experiencing rate limits. Please select or enter your symptoms below to get a classifier suggestion."
 
     return "I am a medical assistant and can only help with health-related queries or symptom analysis."
 
