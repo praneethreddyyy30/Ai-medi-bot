@@ -3,6 +3,7 @@ import re
 import joblib
 import numpy as np
 import difflib
+import xml.etree.ElementTree as ET
 from openai import OpenAI
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
@@ -25,6 +26,103 @@ if GEMINI_API_KEY:
     print("[INFO] Gemini client initialized via OpenAI-compatible API.")
 else:
     print("[WARNING] GEMINI_API_KEY not set. Falling back to offline replies.")
+
+# ------------------------------
+# MedlinePlus Remedy Cache + Fetcher
+# ------------------------------
+# In-memory cache: disease name -> remedy summary string
+REMEDY_CACHE = {}
+
+# Comprehensive local fallback for all 45 diseases (used when API is unavailable)
+DISEASE_REMEDIES = {
+    "Common Cold": "Rest, stay hydrated with warm teas and water, use saline nasal spray or steam inhalation to relieve congestion.",
+    "Influenza": "Get bed rest, drink warm broths and fluids, use a humidifier, and take fever-reducing medicine if needed.",
+    "COVID-19": "Rest, isolate, monitor oxygen levels, stay hydrated, and practice breathing exercises. Seek care if symptoms worsen.",
+    "Dengue": "Drink plenty of fluids (water, ORS, coconut water) to prevent dehydration. Rest and monitor platelet count closely.",
+    "Malaria": "Seek medical attention immediately. Rest in a cool room, stay hydrated with electrolyte fluids, and use mosquito nets.",
+    "Typhoid Fever": "Drink boiled or bottled water and ORS, eat soft and easily digestible meals (khichdi, bananas), and rest well.",
+    "Cholera": "Begin Oral Rehydration Salts (ORS) immediately in large quantities. Seek medical care for severe dehydration.",
+    "Chickenpox": "Avoid scratching blisters, take cool oatmeal baths, use calamine lotion, wear loose clothing, and rest.",
+    "Measles": "Rest in a dim room if eyes are sensitive, drink warm fluids, isolate from others, and keep skin clean.",
+    "Rubella": "Rest, drink warm fluids, maintain hygiene, and isolate to prevent spreading the virus to others.",
+    "Tetanus": "Seek emergency medical care immediately. Keep all wounds clean and seek a booster shot if needed.",
+    "Rabies": "Seek emergency medical care immediately after any animal bite. Clean the wound with soap and water for 15 minutes.",
+    "Hepatitis A": "Rest well, eat a bland low-fat diet, avoid alcohol completely, stay hydrated, and maintain good hand hygiene.",
+    "Hepatitis B": "Rest, avoid alcohol, eat nutritious low-fat meals, stay hydrated, and follow prescribed antiviral treatment.",
+    "Hepatitis C": "Rest, avoid alcohol and fatty foods, stay hydrated, and follow medical treatment for antiviral therapy.",
+    "Tuberculosis": "Take all prescribed TB medications consistently without skipping doses. Rest, eat nutritious food, and improve ventilation.",
+    "Dysentery": "Stay hydrated with ORS, eat a bland BRAT diet (bananas, rice, applesauce, toast), and rest.",
+    "Salmonella Infection": "Drink plenty of fluids, take ORS, eat a bland diet, and rest. Seek care if symptoms persist beyond 2 days.",
+    "Ebola": "Seek emergency isolation and medical care immediately. This is a medical emergency requiring hospital treatment.",
+    "Plague": "Seek emergency medical attention immediately. Plague requires urgent antibiotic treatment in a clinical setting.",
+    "Chikungunya": "Rest, stay hydrated, use cold compresses on swollen joints, and take paracetamol for fever and pain.",
+    "Zika": "Rest, drink plenty of fluids, use paracetamol for fever. Pregnant women must consult a doctor immediately.",
+    "SARS": "Seek immediate medical care. Isolate, rest, and stay hydrated while following medical protocols.",
+    "MERS": "Seek immediate medical care. Isolate and rest. This requires urgent hospital treatment.",
+    "West Nile Fever": "Rest, stay hydrated, and use over-the-counter pain relievers for headache and body aches.",
+    "Yellow Fever": "Rest in a cool place, stay hydrated, avoid aspirin. Seek immediate medical care for severe symptoms.",
+    "Leptospirosis": "Stay hydrated, rest, and seek medical care promptly. Avoid contact with potentially contaminated water.",
+    "Brucellosis": "Rest, eat nutritious food, stay hydrated, and take all prescribed antibiotics as directed.",
+    "Anthrax": "Seek emergency medical care immediately. Requires urgent antibiotic treatment in a clinical setting.",
+    "Botulism": "Seek emergency medical care immediately. This requires urgent hospital treatment.",
+    "Meningitis": "Seek emergency medical care immediately. Rest in a quiet dark room and stay hydrated while awaiting treatment.",
+    "Encephalitis": "Seek emergency medical care immediately. Keep cool, rest, and stay hydrated while awaiting treatment.",
+    "Diphtheria": "Seek medical care immediately for antitoxin treatment. Rest, stay hydrated, and isolate from others.",
+    "Whooping Cough": "Rest, stay hydrated, use a humidifier, and eat small frequent meals. Cough drops may soothe the throat.",
+    "Mumps": "Rest, apply warm or cold packs to swollen glands, eat soft foods, stay hydrated, and isolate.",
+    "Polio": "Seek medical care immediately. Rest is critical; use warm compresses on painful muscles for relief.",
+    "Typhus": "Rest, stay well hydrated, and seek medical care promptly for antibiotic treatment.",
+    "Rocky Mountain Spotted Fever": "Seek immediate medical care for antibiotic treatment. Rest and stay hydrated.",
+    "Lyme Disease": "Rest, stay hydrated, and seek medical care promptly for antibiotic treatment to prevent complications.",
+    "Leishmaniasis": "Seek medical care for treatment. Rest, stay hydrated, and use insect repellent to prevent re-infection.",
+    "Schistosomiasis": "Seek medical care for antiparasitic treatment. Stay hydrated and avoid contact with contaminated water.",
+    "Filariasis": "Seek medical treatment. Keep affected limbs elevated, maintain hygiene, and exercise the limb gently.",
+    "Toxoplasmosis": "Rest, stay hydrated, and eat well. Seek medical care especially if pregnant or immunocompromised.",
+    "Cryptosporidiosis": "Stay hydrated with ORS, eat a bland diet, rest, and avoid spreading infection through proper hand washing.",
+}
+
+MEDLINEPLUS_BASE_URL = "https://wsearch.nlm.nih.gov/ws/query"
+
+def fetch_medlineplus_remedy(disease_name: str) -> str | None:
+    """
+    Fetch a verified disease summary from MedlinePlus API.
+    Results are cached in REMEDY_CACHE to avoid redundant API calls.
+    """
+    # 1. Check in-memory cache first
+    if disease_name in REMEDY_CACHE:
+        print(f"[CACHE HIT] Remedy for '{disease_name}' served from cache.")
+        return REMEDY_CACHE[disease_name]
+
+    # 2. Try MedlinePlus API
+    params = {"db": "healthTopics", "term": disease_name, "rettype": "brief"}
+    try:
+        import requests as _req
+        res = _req.get(MEDLINEPLUS_BASE_URL, params=params, timeout=4)
+        if res.status_code == 200:
+            root = ET.fromstring(res.text)
+            for doc in root.iter("document"):
+                for content in doc.iter("content"):
+                    if content.get("name") == "FullSummary" and content.text:
+                        # Strip HTML tags and clean whitespace
+                        clean = re.sub(r'<[^>]+>', '', content.text)
+                        clean = re.sub(r'\s+', ' ', clean).strip()
+                        # Take first 2 sentences only
+                        sentences = re.split(r'(?<=[.!?])\s+', clean)
+                        summary = ' '.join(sentences[:2])
+                        # Store in cache
+                        REMEDY_CACHE[disease_name] = summary
+                        print(f"[CACHE SET] MedlinePlus remedy cached for '{disease_name}'.")
+                        return summary
+    except Exception as e:
+        print(f"[WARNING] MedlinePlus fetch failed for '{disease_name}': {e}")
+
+    # 3. Fall back to local DISEASE_REMEDIES dict
+    local = DISEASE_REMEDIES.get(disease_name)
+    if local:
+        REMEDY_CACHE[disease_name] = local   # Also cache the local fallback
+        return local
+
+    return None
 
 # ------------------------------
 # Load Disease Prediction Model
@@ -373,24 +471,7 @@ def chat():
                 reply = (f"Based on the symptoms ({symptoms_str}), the classifier suggests **{top_pred}** as the most likely match. "
                          f"See the detailed breakdown below.")
 
-            # Remedies lookup dictionary for offline fallback
-            DISEASE_REMEDIES = {
-                "Common Cold": "Rest, stay hydrated (water, warm teas), and use saline nasal sprays or steam inhalation.",
-                "Influenza": "Get plenty of bed rest, drink warm broths, and use a humidifier to ease congestion.",
-                "COVID-19": "Rest, monitor oxygen levels, isolate, stay hydrated, and practice breathing exercises.",
-                "Dengue": "Drink plenty of fluids (water, ORS) to prevent dehydration, rest, and monitor platelet count.",
-                "Malaria": "Seek immediate medical attention. Rest in a cool room and stay hydrated with electrolyte fluids.",
-                "Typhoid Fever": "Drink boiled water or ORS, eat light/easily digestible meals, and rest.",
-                "Tetanus": "Seek emergency medical care immediately. Keep wounds clean.",
-                "Rubella": "Rest, drink warm fluids, keep skin clean, and avoid contact with others to prevent spread.",
-                "Measles": "Rest, keep the room dim if eyes are sensitive to light, drink warm fluids, and isolate.",
-                "Chickenpox": "Avoid scratching rashes, take cool oatmeal baths, wear loose clothing, and rest.",
-                "Cholera": "Immediately start taking Oral Rehydration Salts (ORS) in large quantities to prevent severe dehydration.",
-                "Dysentery": "Stay hydrated with ORS, eat a bland diet (bananas, rice), and rest.",
-                "Salmonella Infection": "Drink fluids to replace lost electrolytes, rest, and eat simple bland foods."
-            }
-
-            # Optional Gemini advice via OpenAI-compatible client
+            # ── Tier 1: Try Gemini API for personalised advice ─────────────────
             advice_text = None
             if gemini_client:
                 advice_prompt = (
@@ -412,9 +493,11 @@ def chat():
                     pass
 
             if advice_text:
+                # Gemini succeeded
                 reply += f"\n\n*Medi AI Support:* {advice_text}"
             else:
-                remedy = DISEASE_REMEDIES.get(top_pred, "Get plenty of rest, stay hydrated, and monitor your symptoms closely.")
+                # ── Tier 2 & 3: MedlinePlus API (cached) → local dict ──────────
+                remedy = fetch_medlineplus_remedy(top_pred) or "Get plenty of rest, stay hydrated, and monitor your symptoms closely."
                 reply += (f"\n\n*Medi AI Support:* 🌱 **Home Care Tips:** {remedy}\n\n"
                           f"⚠️ **Note:** Please consult a doctor or healthcare professional for proper diagnosis and treatment.")
 
