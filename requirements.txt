@@ -1,4 +1,5 @@
 flask
+openai
 xgboost
 scikit-learn
 joblib

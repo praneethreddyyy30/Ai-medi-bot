@@ -2,8 +2,8 @@ import os
 import re
 import joblib
 import numpy as np
-import requests
 import difflib
+from openai import OpenAI
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
 
@@ -11,6 +11,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__, template_folder='.', static_folder='.', static_url_path='')
+
+# ------------------------------
+# OpenAI client pointed at Gemini's OpenAI-compatible endpoint
+# ------------------------------
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+gemini_client = None
+if GEMINI_API_KEY:
+    gemini_client = OpenAI(
+        api_key=GEMINI_API_KEY,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+    )
+    print("[INFO] Gemini client initialized via OpenAI-compatible API.")
+else:
+    print("[WARNING] GEMINI_API_KEY not set. Falling back to offline replies.")
 
 # ------------------------------
 # Load Disease Prediction Model
@@ -78,9 +92,6 @@ SYNONYMS = {
 GREETING_RE = re.compile(r"^\s*(hi+l*o*|hello+|hey+|yo+|hlo+|helo+|hy+|hola|good\s+(morning|afternoon|evening))\b", re.I)
 BYE_RE = re.compile(r"^\s*(bye|goodbye|see you|see ya|take care|farewell)\b", re.I)
 
-# Read API Key
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-
 # ------------------------------
 # Helper functions
 # ------------------------------
@@ -115,8 +126,8 @@ def detect_symptoms(text: str):
 
 
 def extract_symptoms_with_llm(text: str):
-    """Use Gemini to extract symptoms from free-form text as a fallback."""
-    if not GEMINI_API_KEY:
+    """Use Gemini (via OpenAI-compatible client) to extract symptoms from free-form text."""
+    if not gemini_client:
         return set()
 
     prompt = (
@@ -127,25 +138,19 @@ def extract_symptoms_with_llm(text: str):
         f"Symptoms present:"
     )
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GEMINI_API_KEY}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 60
-        }
-    }
-
     try:
-        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=3)
-        if response.status_code == 200:
-            res_json = response.json()
-            raw_output = res_json['candidates'][0]['content']['parts'][0]['text'].lower().strip()
-            found = set()
-            for s in FEATURES:
-                if s in raw_output:
-                    found.add(s)
-            return found
+        response = gemini_client.chat.completions.create(
+            model="gemini-3.1-flash-lite",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+            max_tokens=60
+        )
+        raw_output = response.choices[0].message.content.lower().strip()
+        found = set()
+        for s in FEATURES:
+            if s in raw_output:
+                found.add(s)
+        return found
     except Exception as e:
         print(f"[WARNING] LLM symptom extraction failed: {e}")
     return set()
@@ -236,12 +241,10 @@ def get_fallback_reply(user_message: str) -> str:
 
 
 def gemini_reply(user_message: str, active_symptoms: list = None, conversation_history: list = None) -> str:
-    """Get a response from the serverless Gemini API."""
-    if not GEMINI_API_KEY:
+    """Get a response from Gemini via the OpenAI-compatible client."""
+    if not gemini_client:
         return get_fallback_reply(user_message)
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GEMINI_API_KEY}"
-    
     system_instruction = (
         "You are Medi AI, a helpful, friendly, and concise medical AI assistant. "
         "Keep your answers short (typically 1-2 sentences). "
@@ -252,46 +255,30 @@ def gemini_reply(user_message: str, active_symptoms: list = None, conversation_h
         "Your refusal MUST say: 'I am a medical assistant and can only help with health-related queries or symptom analysis.'"
     )
 
-    # Build context message internally if we have active symptoms
+    # Build context message
     context_msg = user_message
     if active_symptoms:
         symptoms_str = ", ".join([s.replace("_", " ") for s in active_symptoms])
         context_msg = f"[Context: The user currently has these selected symptoms: {symptoms_str}]\nUser message: {user_message}"
 
-    contents = []
+    # Build messages list in OpenAI format
+    messages = [{"role": "system", "content": system_instruction}]
     if conversation_history:
-        # Include last 4 turns for context
         for turn in conversation_history[-4:]:
-            contents.append({
-                "role": "user" if turn.get("role") == "user" else "model",
-                "parts": [{"text": turn.get("content", "")}]
+            messages.append({
+                "role": turn.get("role", "user"),
+                "content": turn.get("content", "")
             })
-
-    contents.append({
-        "role": "user",
-        "parts": [{"text": context_msg}]
-    })
-
-    payload = {
-        "contents": contents,
-        "systemInstruction": {
-            "parts": [{"text": system_instruction}]
-        },
-        "generationConfig": {
-            "temperature": 0.7,
-            "maxOutputTokens": 100
-        }
-    }
+    messages.append({"role": "user", "content": context_msg})
 
     try:
-        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=5)
-        if response.status_code == 200:
-            res_json = response.json()
-            reply = res_json['candidates'][0]['content']['parts'][0]['text']
-            return reply.strip()
-        else:
-            print(f"[WARNING] Gemini API returned status {response.status_code}: {response.text}")
-            return get_fallback_reply(user_message)
+        response = gemini_client.chat.completions.create(
+            model="gemini-3.1-flash-lite",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=100
+        )
+        return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"[ERROR] Failed to query Gemini API: {e}")
         return get_fallback_reply(user_message)
@@ -307,27 +294,27 @@ def index():
 
 @app.route("/health")
 def health():
-    key_exists = GEMINI_API_KEY is not None and len(GEMINI_API_KEY.strip()) > 0
-    key_prefix = GEMINI_API_KEY[:6] if key_exists else "None"
-    
+    key_exists = gemini_client is not None
+
     test_api_status = None
     test_api_response = None
-    
+
     if key_exists:
         try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GEMINI_API_KEY}"
-            payload = {"contents": [{"parts": [{"text": "Hello"}]}]}
-            res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=4)
-            test_api_status = res.status_code
-            test_api_response = res.text[:200]  # Show first 200 chars
+            response = gemini_client.chat.completions.create(
+                model="gemini-3.1-flash-lite",
+                messages=[{"role": "user", "content": "Hello"}],
+                max_tokens=10
+            )
+            test_api_status = 200
+            test_api_response = response.choices[0].message.content.strip()
         except Exception as e:
             test_api_status = "error"
-            test_api_response = str(e)
-            
+            test_api_response = str(e)[:200]
+
     return jsonify({
         "status": "healthy",
-        "gemini_api_key_configured": key_exists,
-        "key_prefix": key_prefix,
+        "gemini_client_configured": key_exists,
         "test_api_status": test_api_status,
         "test_api_response": test_api_response
     })
@@ -403,9 +390,9 @@ def chat():
                 "Salmonella Infection": "Drink fluids to replace lost electrolytes, rest, and eat simple bland foods."
             }
 
-            # Optional Gemini advice
+            # Optional Gemini advice via OpenAI-compatible client
             advice_text = None
-            if GEMINI_API_KEY:
+            if gemini_client:
                 advice_prompt = (
                     f"The user has the following symptoms: {symptoms_str}. "
                     f"The classifier predicted: {top_pred}. "
@@ -414,14 +401,13 @@ def chat():
                     f"and include a suggestion to consult a doctor for a proper diagnosis."
                 )
                 try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={GEMINI_API_KEY}"
-                    payload = {
-                        "contents": [{"parts": [{"text": advice_prompt}]}],
-                        "generationConfig": {"temperature": 0.5, "maxOutputTokens": 100}
-                    }
-                    res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=4)
-                    if res.status_code == 200:
-                        advice_text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+                    res = gemini_client.chat.completions.create(
+                        model="gemini-3.1-flash-lite",
+                        messages=[{"role": "user", "content": advice_prompt}],
+                        temperature=0.5,
+                        max_tokens=100
+                    )
+                    advice_text = res.choices[0].message.content.strip()
                 except Exception:
                     pass
 
