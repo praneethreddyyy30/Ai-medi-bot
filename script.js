@@ -10,22 +10,23 @@ const activeSymptomsList = document.getElementById("active-symptoms-list");
 const predictionPanel = document.getElementById("prediction-panel");
 const predictionsList = document.getElementById("predictions-list");
 
-// Supported symptoms list matching app.py exactly
-const FEATURES = [
-  "fever", "cough", "sore_throat", "runny_nose", "sneezing",
-  "headache", "fatigue", "chills", "muscle_pain", "joint_pain",
-  "rash", "abdominal_pain", "diarrhea", "vomiting", "nausea",
-  "loss_of_appetite", "night_sweats", "weight_loss", "jaundice",
-  "dark_urine", "bloody_stool", "confusion", "stiff_neck",
-  "swollen_glands", "skin_lesions", "itching", "blisters",
-  "ulcers", "paralysis", "bite_exposure"
-];
+// Features loaded dynamically from /features endpoint (stays in sync with backend)
+let FEATURES = [];
 
 let activeSymptoms = [];
 let chatHistory = [];
 
-// Initialize Symptom Selection Tags
-function initSymptomTags() {
+// Load symptom features from backend and initialize tags
+async function initSymptomTags() {
+  try {
+    const res = await fetch("/features");
+    const data = await res.json();
+    FEATURES = data.features || [];
+  } catch (e) {
+    console.warn("Could not load features from backend, using empty list.", e);
+    FEATURES = [];
+  }
+
   pillGrid.innerHTML = "";
   FEATURES.forEach(symptom => {
     const btn = document.createElement("button");

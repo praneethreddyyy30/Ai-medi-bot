@@ -436,6 +436,12 @@ def health():
     })
 
 
+@app.route("/features")
+def features():
+    """Return the canonical symptom features list so frontend stays in sync with backend."""
+    return jsonify({"features": FEATURES})
+
+
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.json or {}
