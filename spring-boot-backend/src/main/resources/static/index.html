@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MediAI — Clinical Diagnostic & Healthcare Assistant</title>
+  
+  <!-- Modern Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css?v=3">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <nav class="top-navbar">
+    <div class="nav-brand">
+      <div class="brand-icon-box">
+        <!-- Crisp Modern Medical Shield & Pulse SVG (Fixed 18x18) -->
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M9 12h2l1-2 2 4 1-2h2"/>
+        </svg>
+      </div>
+      <div class="brand-title-wrap">
+        <h1>MediAI <span class="ai-pill">CLINICAL</span></h1>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <div class="system-status-chip">
+        <span class="status-dot"></span>
+        <span>Spring Boot 3 + XGBoost</span>
+      </div>
+      <button id="reset-btn" class="reset-session-btn" title="Reset Session">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+        Reset
+      </button>
+    </div>
+  </nav>
+
+  <!-- App Viewport -->
+  <div class="app-viewport">
+    <!-- Chat Messages Scroll Area -->
+    <div id="chat-box" class="chat-scroll-area"></div>
+
+    <!-- Live Classifier Predictions Progress Panel -->
+    <div id="prediction-panel" class="prediction-panel hidden">
+      <div class="panel-inner">
+        <div class="panel-header">
+          <h4>🩺 Classifier Confidence Breakdown</h4>
+          <span style="font-size: 0.72rem; color: #64748b;">Top 3 Probabilities</span>
+        </div>
+        <div id="predictions-list" class="predictions-list"></div>
+      </div>
+    </div>
+
+    <!-- Supported Symptoms Drawer (Collapsible) -->
+    <div id="symptoms-list-container" class="symptoms-drawer hidden">
+      <div class="drawer-card">
+        <div class="drawer-header">
+          <span>Click tags to add symptoms to your query:</span>
+          <span style="font-size: 0.72rem; color: #94a3b8;">30 Clinical Features</span>
+        </div>
+        <div id="symptoms-pill-grid" class="tags-grid"></div>
+      </div>
+    </div>
+
+    <!-- DOCKED BOTTOM CONTROLS (OPTIONS PLACED AT THE BOTTOM) -->
+    <div class="bottom-dock">
+      <div class="dock-inner">
+        <!-- Bottom Mode Selector Bar -->
+        <div class="mode-bar-bottom">
+          <div class="mode-toggle-group">
+            <button id="mode-tab-predict" class="mode-btn active" data-mode="predict" title="XGBoost Classifier">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M12 2v20M2 12h20"/>
+              </svg>
+              <span>Disease Prediction</span>
+            </button>
+            <button id="mode-tab-chat" class="mode-btn" data-mode="chat" title="Gemini & MedlinePlus Q&A">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span>Health Q&A (Gemini)</span>
+            </button>
+          </div>
+
+          <button id="symptoms-toggle" class="symptoms-toggle-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 8v8M8 12h8"/>
+            </svg>
+            Supported Symptoms
+          </button>
+        </div>
+
+        <!-- Floating Input Bar -->
+        <div class="input-bar">
+          <input id="user-input" type="text" placeholder="Describe symptoms e.g. fever, headache, chills or select from supported symptoms..." autocomplete="off" />
+          <button id="send-btn" title="Send Query">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Emergency Helpline Footer -->
+        <div class="helpline-footer">
+          <div>🚑 Emergency: <strong>102</strong></div>
+          <div>☣️ Poison Control: <strong>1800-425-1213</strong></div>
+          <div>🧠 Mental Health: <strong>14416</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/script.js?v=5"></script>
+</body>
+</html>

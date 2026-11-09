@@ -1,11 +1,36 @@
-# Credentials and environment variables
-.env
+# Maven / Java build artifacts
+target/
+**/target/
+*.class
+*.jar
+*.war
 
-# Python caching
+# Bundled local tools
+maven_home/
+
+# Environment and sensitive keys
+.env
+**/.env
+*.local
+
+# Python caching & virtual envs
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
+venv/
+.venv/
+env/
+
+# IDE & Editor files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
 
 # OS generated files
 .DS_Store
 Thumbs.db
+*.log
